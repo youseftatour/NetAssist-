@@ -65,6 +65,10 @@ public final class DashboardFrame extends JFrame {
     }
 
     private void runDiagnostics() {
+        LocalDateTime myDateObj = LocalDateTime.now();
+        DateTimeFormatter myFormatObj = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+        String formattedDate = myDateObj.format(myFormatObj);
+
         String host = hostField.getText().trim();
 
         if (host.isEmpty()) {
@@ -90,6 +94,7 @@ public final class DashboardFrame extends JFrame {
             @Override
             protected String doInBackground() {
                 StringBuilder report = new StringBuilder();
+                report.append(formattedDate + "\n\n");
                 report.append("NETASSIST DIAGNOSTIC REPORT\n");
                 report.append("Target: ").append(host).append(':').append(port).append("\n");
                 report.append("==================================================\n\n");
