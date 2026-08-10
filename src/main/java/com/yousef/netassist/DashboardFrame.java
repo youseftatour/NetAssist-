@@ -26,6 +26,7 @@ public final class DashboardFrame extends JFrame {
 
 	private final JTextField portField = new JTextField("443", 6);
     private final JButton runButton = new JButton("Run diagnostics");
+    private final JButton commonPortsButton = new JButton("Test common ports");
     private final JButton clearButton = new JButton("Clear");
     private final JTextArea outputArea = new JTextArea();
     private final NetworkDiagnostics diagnostics = new NetworkDiagnostics();
@@ -57,6 +58,7 @@ public final class DashboardFrame extends JFrame {
         inputPanel.add(portField);
         inputPanel.add(portField);
         inputPanel.add(runButton);
+        inputPanel.add(commonPortsButton);
         inputPanel.add(clearButton);
 
         outputArea.setEditable(false);
@@ -69,6 +71,7 @@ public final class DashboardFrame extends JFrame {
 
     private void registerListeners() {
         runButton.addActionListener(event -> runDiagnostics());
+        commonPortsButton.addActionListener(event -> testCommonPorts());
         clearButton.addActionListener(event -> outputArea.setText(""));
         hostField.addActionListener(event -> runDiagnostics());
         portField.addActionListener(event -> runDiagnostics());
@@ -168,6 +171,112 @@ public final class DashboardFrame extends JFrame {
 
         worker.execute();
     }
+    
+    private void testCommonPorts() {
+
+        String host = hostField.getText().trim();
+
+        if (host.isEmpty()) {
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Enter a hostname or IP address."
+            );
+
+            return;
+        }
+
+        runButton.setEnabled(false);
+        commonPortsButton.setEnabled(false);
+
+        outputArea.setText(
+                "Testing common services on "
+                        + host
+                        + "...\n"
+        );
+
+        SwingWorker<String, Void> worker =
+                new SwingWorker<>() {
+
+            @Override
+            protected String doInBackground() {
+
+                StringBuilder report =
+                        new StringBuilder();
+
+                report.append(
+                        "COMMON SERVICE CHECK\n"
+                );
+
+                report.append("Target: ")
+                        .append(host)
+                        .append("\n");
+
+                report.append(
+                        "========================================\n\n"
+                );
+
+                ServicePreset[] presets = {
+
+                        ServicePreset.HTTP,
+                        ServicePreset.HTTPS,
+                        ServicePreset.DNS,
+                        ServicePreset.SSH,
+                        ServicePreset.REMOTE_DESKTOP,
+                        ServicePreset.SQL_SERVER,
+                        ServicePreset.MYSQL
+                };
+
+                for (ServicePreset preset : presets) {
+
+                    CheckResult result =
+                            diagnostics.testTcpPort(
+                                    host,
+                                    preset.getPort(),
+                                    1000
+                            );
+
+                    report.append(
+                            String.format(
+                                    "%-15s port %-5d -> %s%n",
+                                    preset,
+                                    preset.getPort(),
+                                    result.successful()
+                                            ? "OPEN"
+                                            : "NO CONNECTION"
+                            )
+                    );
+                }
+
+                return report.toString();
+            }
+
+            @Override
+            protected void done() {
+
+                try {
+
+                    outputArea.setText(get());
+                    outputArea.setCaretPosition(0);
+
+                } catch (Exception exception) {
+
+                    outputArea.setText(
+                            "Unexpected error: "
+                                    + exception.getMessage()
+                    );
+
+                } finally {
+
+                    runButton.setEnabled(true);
+                    commonPortsButton.setEnabled(true);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+    
     private String getSelectedServiceName() {
 
         ServicePreset selected =
