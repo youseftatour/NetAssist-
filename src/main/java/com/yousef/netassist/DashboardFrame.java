@@ -16,11 +16,15 @@ import java.awt.Font;
 import java.util.List;
 import java.time.LocalDateTime; 
 import java.time.format.DateTimeFormatter; 
-
+import javax.swing.JComboBox;
 public final class DashboardFrame extends JFrame {
 
-    private final JTextField hostField = new JTextField("example.com", 22);
-    private final JTextField portField = new JTextField("443", 6);
+	private final JTextField hostField = new JTextField("example.com", 22);
+
+	private final JComboBox<ServicePreset> serviceBox =
+	        new JComboBox<>(ServicePreset.values());
+
+	private final JTextField portField = new JTextField("443", 6);
     private final JButton runButton = new JButton("Run diagnostics");
     private final JButton clearButton = new JButton("Clear");
     private final JTextArea outputArea = new JTextArea();
@@ -31,6 +35,7 @@ public final class DashboardFrame extends JFrame {
         configureWindow();
         createLayout();
         registerListeners();
+        updatePortFromService();
     }
 
     private void configureWindow() {
@@ -44,7 +49,12 @@ public final class DashboardFrame extends JFrame {
         inputPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
         inputPanel.add(new JLabel("Host:"));
         inputPanel.add(hostField);
+
+        inputPanel.add(new JLabel("Service:"));
+        inputPanel.add(serviceBox);
+
         inputPanel.add(new JLabel("TCP port:"));
+        inputPanel.add(portField);
         inputPanel.add(portField);
         inputPanel.add(runButton);
         inputPanel.add(clearButton);
@@ -62,6 +72,33 @@ public final class DashboardFrame extends JFrame {
         clearButton.addActionListener(event -> outputArea.setText(""));
         hostField.addActionListener(event -> runDiagnostics());
         portField.addActionListener(event -> runDiagnostics());
+        serviceBox.addActionListener(
+                event -> updatePortFromService()
+        );
+    }
+    
+    private void updatePortFromService() {
+
+        ServicePreset selected =
+                (ServicePreset) serviceBox.getSelectedItem();
+
+        if (selected == null) {
+            return;
+        }
+
+        if (selected.isCustom()) {
+
+            portField.setEditable(true);
+            portField.requestFocusInWindow();
+
+        } else {
+
+            portField.setText(
+                    String.valueOf(selected.getPort())
+            );
+
+            portField.setEditable(false);
+        }
     }
 
     private void runDiagnostics() {
@@ -97,6 +134,9 @@ public final class DashboardFrame extends JFrame {
                 report.append(formattedDate + "\n\n");
                 report.append("NETASSIST DIAGNOSTIC REPORT\n");
                 report.append("Target: ").append(host).append(':').append(port).append("\n");
+                report.append("Service: ")
+                .append(getSelectedServiceName())
+                .append("\n");
                 report.append("==================================================\n\n");
 
                 report.append("LOCAL NETWORK\n");
@@ -128,7 +168,15 @@ public final class DashboardFrame extends JFrame {
 
         worker.execute();
     }
+    private String getSelectedServiceName() {
 
+        ServicePreset selected =
+                (ServicePreset) serviceBox.getSelectedItem();
+
+        return selected == null
+                ? "Unknown"
+                : selected.toString();
+    }
     private String buildSummary(List<CheckResult> results) {
         boolean dnsWorked = results.get(0).successful();
         boolean hostResponded = results.get(1).successful();
@@ -148,4 +196,6 @@ public final class DashboardFrame extends JFrame {
 
         return "SUMMARY\n" + conclusion + "\n";
     }
+    
+    
 }
