@@ -56,7 +56,6 @@ public final class DashboardFrame extends JFrame {
 
         inputPanel.add(new JLabel("TCP port:"));
         inputPanel.add(portField);
-        inputPanel.add(portField);
         inputPanel.add(runButton);
         inputPanel.add(commonPortsButton);
         inputPanel.add(clearButton);
@@ -128,6 +127,7 @@ public final class DashboardFrame extends JFrame {
         }
 
         runButton.setEnabled(false);
+        commonPortsButton.setEnabled(false);
         outputArea.setText("Running diagnostics for " + host + "...\n");
 
         SwingWorker<String, Void> worker = new SwingWorker<>() {
@@ -145,15 +145,40 @@ public final class DashboardFrame extends JFrame {
                 report.append("LOCAL NETWORK\n");
                 report.append(diagnostics.getLocalNetworkInformation()).append("\n\n");
 
-                List<CheckResult> results = List.of(
-                        diagnostics.resolveHost(host),
-                        diagnostics.checkReachability(host, 2_000),
-                        diagnostics.testTcpPort(host, port, 2_000)
-                );
+                CheckResult dnsResult =
+                        diagnostics.resolveHost(host);
 
-                results.forEach(result -> report.append(result).append('\n'));
-                report.append(buildSummary(results));
+                CheckResult reachabilityResult =
+                        diagnostics.checkReachability(
+                                host,
+                                2_000
+                        );
+
+                TcpCheckResult tcpResult =
+                        diagnostics.testTcpPort(
+                                host,
+                                port,
+                                2_000
+                        );
+
+                report.append(dnsResult)
+                .append('\n');
+
+        report.append(reachabilityResult)
+                .append('\n');
+
+        report.append(tcpResult)
+                .append('\n');
+        
+        report.append(
+                buildSummary(
+                        dnsResult,
+                        reachabilityResult,
+                        tcpResult
+                )
+        );
                 return report.toString();
+                
             }
 
             @Override
@@ -165,6 +190,7 @@ public final class DashboardFrame extends JFrame {
                     outputArea.setText("Unexpected error: " + exception.getMessage());
                 } finally {
                     runButton.setEnabled(true);
+                    commonPortsButton.setEnabled(true);
                 }
             }
         };
@@ -229,7 +255,7 @@ public final class DashboardFrame extends JFrame {
 
                 for (ServicePreset preset : presets) {
 
-                    CheckResult result =
+                    TcpCheckResult result =
                             diagnostics.testTcpPort(
                                     host,
                                     preset.getPort(),
@@ -238,12 +264,11 @@ public final class DashboardFrame extends JFrame {
 
                     report.append(
                             String.format(
-                                    "%-15s port %-5d -> %s%n",
+                                    "%-15s port %-5d -> %-28s (%d ms)%n",
                                     preset,
                                     preset.getPort(),
-                                    result.successful()
-                                            ? "OPEN"
-                                            : "NO CONNECTION"
+                                    result.status(),
+                                    result.durationMs()
                             )
                     );
                 }
@@ -286,25 +311,55 @@ public final class DashboardFrame extends JFrame {
                 ? "Unknown"
                 : selected.toString();
     }
-    private String buildSummary(List<CheckResult> results) {
-        boolean dnsWorked = results.get(0).successful();
-        boolean hostResponded = results.get(1).successful();
-        boolean portWorked = results.get(2).successful();
+    private String buildSummary(
+        CheckResult dnsResult,
+        CheckResult reachabilityResult,
+        TcpCheckResult tcpResult
+) {
 
-        String conclusion;
-        if (!dnsWorked) {
-            conclusion = "The hostname could not be resolved. Check the name and DNS configuration.";
-        } else if (portWorked) {
-            conclusion = "DNS and the requested TCP service are reachable.";
-        } else if (hostResponded) {
-            conclusion = "The host responded, but the requested TCP service was unavailable.";
-        } else {
-            conclusion = "DNS worked, but no reachability or TCP response was received. "
-                    + "A firewall may be blocking the checks.";
-        }
+    String conclusion;
 
-        return "SUMMARY\n" + conclusion + "\n";
+    if (!dnsResult.successful()) {
+
+        conclusion =
+                "DNS failed. Verify the hostname "
+                        + "and your DNS configuration.";
+
+    } else {
+
+        conclusion = switch (tcpResult.status()) {
+
+            case OPEN ->
+                    "The requested TCP service is reachable.";
+
+            case CONNECTION_REFUSED ->
+                    "The host is reachable, but the target port "
+                            + "refused the connection. The service "
+                            + "may be stopped or not listening on that port.";
+
+            case TIMEOUT ->
+                    "The TCP connection timed out. A firewall may "
+                            + "be filtering the port, or the target "
+                            + "may not be responding.";
+
+            case UNREACHABLE ->
+                    "The target network or host could not be reached.";
+
+            case DNS_FAILURE ->
+                    "The hostname could not be resolved.";
+
+            case INVALID_PORT ->
+                    "The selected port number is invalid.";
+
+            case ERROR ->
+                    "The TCP test encountered an unexpected error.";
+        };
     }
+
+    return "SUMMARY\n"
+            + conclusion
+            + "\n";
+}
     
     
 }
