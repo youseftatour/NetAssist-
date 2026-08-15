@@ -41,6 +41,7 @@ import java.time.format.DateTimeFormatter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public final class MonitoringDashboardPanel
@@ -312,11 +313,12 @@ public final class MonitoringDashboardPanel
             );
 
     public MonitoringDashboardPanel(
-            NetworkDiagnostics diagnostics
+            MonitoringManager manager
     ) {
         this.manager =
-                new MonitoringManager(
-                        diagnostics
+                Objects.requireNonNull(
+                        manager,
+                        "manager"
                 );
 
         setBackground(

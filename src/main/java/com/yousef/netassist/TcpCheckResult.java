@@ -5,23 +5,14 @@ public record TcpCheckResult(
         String details,
         long durationMs
 ) {
-
     public boolean successful() {
         return status == TcpStatus.OPEN;
     }
 
     @Override
     public String toString() {
-
-        String passFail =
-                successful() ? "PASS" : "FAIL";
-
+        String passFail = successful() ? "PASS" : "FAIL";
         return "[%s] TCP port check - %s (%d ms)%n%s%n"
-                .formatted(
-                        passFail,
-                        status,
-                        durationMs,
-                        details
-                );
+                .formatted(passFail, status, durationMs, details);
     }
 }

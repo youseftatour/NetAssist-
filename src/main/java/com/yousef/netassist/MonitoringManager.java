@@ -4,9 +4,9 @@ import java.io.IOException;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,14 +26,13 @@ public final class MonitoringManager
         }
     }
 
-    private static final int MAX_INCIDENTS_PER_TARGET =
-            250;
-
-    private static final int MAX_RECENT_RESULTS =
-            60;
+    private static final int MAX_INCIDENTS_PER_TARGET = 250;
+    private static final int MAX_RECENT_RESULTS = 60;
 
     private final NetworkDiagnostics diagnostics;
-    private final MonitoringTargetStore store;
+    private final MonitoringTargetStore targetStore;
+    private final MonitoringHistoryStore historyStore;
+    private final NotificationService notificationService;
 
     private final Map<String, TargetRuntime> runtimes =
             new LinkedHashMap<>();
@@ -48,13 +47,17 @@ public final class MonitoringManager
     ) {
         this(
                 diagnostics,
-                new MonitoringTargetStore()
+                new MonitoringTargetStore(),
+                new MonitoringHistoryStore(),
+                new NotificationService()
         );
     }
 
-    MonitoringManager(
+    public MonitoringManager(
             NetworkDiagnostics diagnostics,
-            MonitoringTargetStore store
+            MonitoringTargetStore targetStore,
+            MonitoringHistoryStore historyStore,
+            NotificationService notificationService
     ) {
         this.diagnostics =
                 Objects.requireNonNull(
@@ -62,35 +65,113 @@ public final class MonitoringManager
                         "diagnostics"
                 );
 
-        this.store =
+        this.targetStore =
                 Objects.requireNonNull(
-                        store,
-                        "store"
+                        targetStore,
+                        "targetStore"
+                );
+
+        this.historyStore =
+                Objects.requireNonNull(
+                        historyStore,
+                        "historyStore"
+                );
+
+        this.notificationService =
+                Objects.requireNonNull(
+                        notificationService,
+                        "notificationService"
                 );
 
         loadSavedTargets();
     }
 
     private void loadSavedTargets() {
+        Map<String, List<MonitorIncident>> savedIncidents =
+                loadHistoricalIncidents();
+
         try {
             for (MonitoringTarget target
-                    : store.load()) {
+                    : targetStore.load()) {
+
+                TargetRuntime runtime =
+                        new TargetRuntime(
+                                target
+                        );
+
+                List<MonitorIncident> targetIncidents =
+                        savedIncidents.getOrDefault(
+                                target.id(),
+                                List.of()
+                        );
+
+                int start =
+                        Math.max(
+                                0,
+                                targetIncidents.size()
+                                        - MAX_INCIDENTS_PER_TARGET
+                        );
+
+                for (
+                        int index = start;
+                        index < targetIncidents.size();
+                        index++
+                ) {
+                    runtime.incidents.addLast(
+                            targetIncidents.get(
+                                    index
+                            )
+                    );
+                }
 
                 runtimes.put(
                         target.id(),
-                        new TargetRuntime(
-                                target
-                        )
+                        runtime
                 );
             }
 
         } catch (IOException exception) {
             persistenceWarning =
                     "Saved monitoring targets could not be loaded from "
-                            + store.getFile()
+                            + targetStore.getFile()
                             + ". "
                             + exception.getMessage();
         }
+    }
+
+    private Map<String, List<MonitorIncident>> loadHistoricalIncidents() {
+        Map<String, List<MonitorIncident>> incidentsByTarget =
+                new HashMap<>();
+
+        try {
+            for (HistoricalIncident historical
+                    : historyStore.loadIncidents()) {
+
+                incidentsByTarget
+                        .computeIfAbsent(
+                                historical.targetId(),
+                                ignored ->
+                                        new ArrayList<>()
+                        )
+                        .add(
+                                new MonitorIncident(
+                                        historical.timestamp(),
+                                        historical.type(),
+                                        historical.message(),
+                                        historical.durationSeconds()
+                                )
+                        );
+            }
+
+        } catch (IOException exception) {
+            persistenceWarning =
+                    "Monitoring history could not be loaded from "
+                            + historyStore.getIncidentFile()
+                            + ". "
+                            + exception.getMessage();
+        }
+
+        return incidentsByTarget;
     }
 
     public void addListener(
@@ -214,6 +295,13 @@ public final class MonitoringManager
                         target
                 );
 
+        /*
+         * Preserve the in-memory incident view when editing a profile.
+         */
+        replacement.incidents.addAll(
+                existing.incidents
+        );
+
         runtimes.put(
                 target.id(),
                 replacement
@@ -249,12 +337,9 @@ public final class MonitoringManager
     public synchronized void startTarget(
             String targetId
     ) {
-        TargetRuntime runtime =
-                requireRuntime(
-                        targetId
-                );
-
-        runtime.start();
+        requireRuntime(
+                targetId
+        ).start();
 
         fireChanged();
     }
@@ -262,12 +347,9 @@ public final class MonitoringManager
     public synchronized void stopTarget(
             String targetId
     ) {
-        TargetRuntime runtime =
-                requireRuntime(
-                        targetId
-                );
-
-        runtime.stop();
+        requireRuntime(
+                targetId
+        ).stop();
 
         fireChanged();
     }
@@ -310,6 +392,22 @@ public final class MonitoringManager
         return count;
     }
 
+    public boolean notificationsAvailable() {
+        return notificationService.isAvailable();
+    }
+
+    public boolean notificationsEnabled() {
+        return notificationService.isEnabled();
+    }
+
+    public void setNotificationsEnabled(
+            boolean enabled
+    ) {
+        notificationService.setEnabled(
+                enabled
+        );
+    }
+
     private TargetRuntime requireRuntime(
             String targetId
     ) {
@@ -340,14 +438,54 @@ public final class MonitoringManager
         }
 
         try {
-            store.save(
+            targetStore.save(
                     targets
             );
 
         } catch (IOException exception) {
             firePersistenceError(
                     "Monitoring targets are active, but NetAssist could not save them to "
-                            + store.getFile()
+                            + targetStore.getFile()
+                            + ". "
+                            + exception.getMessage()
+            );
+        }
+    }
+
+    private void persistIncident(
+            MonitoringTarget target,
+            MonitorIncident incident
+    ) {
+        try {
+            historyStore.appendIncident(
+                    target,
+                    incident
+            );
+
+        } catch (IOException exception) {
+            firePersistenceError(
+                    "NetAssist detected an incident but could not save it to "
+                            + historyStore.getIncidentFile()
+                            + ". "
+                            + exception.getMessage()
+            );
+        }
+    }
+
+    private void persistSession(
+            MonitoringTarget target,
+            MonitoringStats stats
+    ) {
+        try {
+            historyStore.appendSession(
+                    target,
+                    stats
+            );
+
+        } catch (IOException exception) {
+            firePersistenceError(
+                    "NetAssist could not save the completed monitoring session to "
+                            + historyStore.getSessionFile()
                             + ". "
                             + exception.getMessage()
             );
@@ -377,11 +515,13 @@ public final class MonitoringManager
     @Override
     public synchronized void close() {
         stopAll();
+
+        notificationService.close();
     }
 
     private final class TargetRuntime {
 
-        private MonitoringTarget target;
+        private final MonitoringTarget target;
 
         private MonitoringSession session;
         private MonitoringStats stats;
@@ -410,8 +550,8 @@ public final class MonitoringManager
             }
 
             /*
-             * Each new monitoring run starts fresh session statistics,
-             * but incident history remains available until the app exits.
+             * Each run gets new performance statistics while the incident
+             * timeline remains visible across runs.
              */
             stats = null;
             lastResult = null;
@@ -438,11 +578,8 @@ public final class MonitoringManager
                                     synchronized (
                                             MonitoringManager.this
                                     ) {
-                                        lastResult =
-                                                result;
-
-                                        stats =
-                                                newStats;
+                                        lastResult = result;
+                                        stats = newStats;
 
                                         recentResults.addLast(
                                                 result
@@ -476,6 +613,16 @@ public final class MonitoringManager
                                         }
                                     }
 
+                                    persistIncident(
+                                            current,
+                                            incident
+                                    );
+
+                                    notificationService.notifyIncident(
+                                            current,
+                                            incident
+                                    );
+
                                     fireChanged();
                                 }
 
@@ -486,9 +633,13 @@ public final class MonitoringManager
                                     synchronized (
                                             MonitoringManager.this
                                     ) {
-                                        stats =
-                                                finalStats;
+                                        stats = finalStats;
                                     }
+
+                                    persistSession(
+                                            current,
+                                            finalStats
+                                    );
 
                                     fireChanged();
                                 }

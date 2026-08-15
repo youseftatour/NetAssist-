@@ -42,7 +42,11 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.LocalDateTime;
@@ -111,6 +115,12 @@ public final class DashboardFrame extends JFrame {
 
     private final JButton clearQuickButton =
             createSecondaryButton("Clear");
+
+    private final JButton copyQuickButton =
+            createSecondaryButton("Copy Report");
+
+    private final JButton exportQuickButton =
+            createSecondaryButton("Export Report");
 
     private final JButton clearCommonButton =
             createSecondaryButton("Clear");
@@ -305,10 +315,25 @@ public final class DashboardFrame extends JFrame {
     private final WindowsDiagnostics windowsDiagnostics =
             new WindowsDiagnostics();
 
+    private final MonitoringHistoryStore monitoringHistoryStore =
+            new MonitoringHistoryStore();
+
+    private final MonitoringManager monitoringManager =
+            new MonitoringManager(
+                    diagnostics,
+                    new MonitoringTargetStore(),
+                    monitoringHistoryStore,
+                    new NotificationService()
+            );
 
     private final MonitoringDashboardPanel monitoringDashboardPanel =
             new MonitoringDashboardPanel(
-                    diagnostics
+                    monitoringManager
+            );
+
+    private final HistoryPanel historyPanel =
+            new HistoryPanel(
+                    monitoringHistoryStore
             );
 
     public DashboardFrame() {
@@ -332,7 +357,19 @@ public final class DashboardFrame extends JFrame {
      */
 
     private void configureWindow() {
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+
+        addWindowListener(
+                new WindowAdapter() {
+
+                    @Override
+                    public void windowClosing(
+                            WindowEvent event
+                    ) {
+                        shutdownApplication();
+                    }
+                }
+        );
 
         /*
          * Remove the native Windows title bar.
@@ -782,6 +819,20 @@ public final class DashboardFrame extends JFrame {
         );
 
         tabs.addTab(
+                "History",
+                historyPanel
+        );
+
+        tabs.addChangeListener(
+                event -> {
+                    if (tabs.getSelectedComponent()
+                            == historyPanel) {
+                        historyPanel.refresh();
+                    }
+                }
+        );
+
+        tabs.addTab(
                 "Common Ports",
                 createCommonPortsPanel()
         );
@@ -1024,6 +1075,8 @@ public final class DashboardFrame extends JFrame {
 
         controls.add(portField);
         controls.add(runButton);
+        controls.add(copyQuickButton);
+        controls.add(exportQuickButton);
         controls.add(clearQuickButton);
 
         JPanel content =
@@ -2310,6 +2363,14 @@ public final class DashboardFrame extends JFrame {
                 event -> clearQuickDiagnostics()
         );
 
+        copyQuickButton.addActionListener(
+                event -> copyQuickReport()
+        );
+
+        exportQuickButton.addActionListener(
+                event -> exportQuickReport()
+        );
+
         clearCommonButton.addActionListener(
                 event -> clearCommonPorts()
         );
@@ -2332,10 +2393,7 @@ public final class DashboardFrame extends JFrame {
         );
 
         closeButton.addActionListener(
-                event -> {
-                    monitoringDashboardPanel.shutdown();
-                    dispose();
-                }
+                event -> shutdownApplication()
         );
     }
 
@@ -4067,6 +4125,60 @@ public final class DashboardFrame extends JFrame {
         header.addMouseMotionListener(
                 dragListener
         );
+    }
+
+    private void copyQuickReport() {
+        String report =
+                quickOutputArea
+                        .getText();
+
+        if (report == null
+                || report.isBlank()) {
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Run diagnostics first. There is no report to copy.",
+                    "Nothing to Copy",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+
+            return;
+        }
+
+        Toolkit.getDefaultToolkit()
+                .getSystemClipboard()
+                .setContents(
+                        new StringSelection(
+                                report
+                        ),
+                        null
+                );
+
+        statusLabel.setText(
+                "Diagnostic report copied to clipboard"
+        );
+    }
+
+    private void exportQuickReport() {
+        ExportUtils.exportText(
+                this,
+                "netassist-diagnostic-report.txt",
+                quickOutputArea.getText()
+        );
+    }
+
+    private void shutdownApplication() {
+        try {
+            monitoringDashboardPanel.shutdown();
+
+        } finally {
+            screenDevice.setFullScreenWindow(
+                    null
+            );
+
+            dispose();
+            System.exit(0);
+        }
     }
 
     /*

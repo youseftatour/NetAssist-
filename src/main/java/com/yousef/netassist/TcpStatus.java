@@ -1,7 +1,6 @@
 package com.yousef.netassist;
 
 public enum TcpStatus {
-
     OPEN("OPEN"),
     CONNECTION_REFUSED("CONNECTION REFUSED"),
     TIMEOUT("TIMEOUT / POSSIBLY FILTERED"),

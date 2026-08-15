@@ -1,7 +1,6 @@
 package com.yousef.netassist;
 
 public enum ServicePreset {
-
     HTTPS("HTTPS", 443),
     HTTP("HTTP", 80),
     DNS("DNS", 53),
