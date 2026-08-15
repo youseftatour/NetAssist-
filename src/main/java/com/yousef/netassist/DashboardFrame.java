@@ -306,10 +306,9 @@ public final class DashboardFrame extends JFrame {
             new WindowsDiagnostics();
 
 
-    private final MonitoringPanel monitoringPanel =
-            new MonitoringPanel(
-                    diagnostics,
-                    () -> hostField.getText().trim()
+    private final MonitoringDashboardPanel monitoringDashboardPanel =
+            new MonitoringDashboardPanel(
+                    diagnostics
             );
 
     public DashboardFrame() {
@@ -779,7 +778,7 @@ public final class DashboardFrame extends JFrame {
 
         tabs.addTab(
                 "Monitor",
-                monitoringPanel
+                monitoringDashboardPanel
         );
 
         tabs.addTab(
@@ -2334,7 +2333,7 @@ public final class DashboardFrame extends JFrame {
 
         closeButton.addActionListener(
                 event -> {
-                    monitoringPanel.stopMonitoring();
+                    monitoringDashboardPanel.shutdown();
                     dispose();
                 }
         );
