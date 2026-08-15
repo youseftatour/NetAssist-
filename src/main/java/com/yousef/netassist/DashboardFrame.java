@@ -28,8 +28,14 @@ public final class DashboardFrame extends JFrame {
     private final JButton runButton = new JButton("Run diagnostics");
     private final JButton commonPortsButton = new JButton("Test common ports");
     private final JButton clearButton = new JButton("Clear");
+    private final JButton nslookupButton = new JButton("NSLookup");
+
+    private final JButton tracertButton = new JButton("Traceroute");
+
+    private final JButton ipconfigButton = new JButton("IP Config");
     private final JTextArea outputArea = new JTextArea();
     private final NetworkDiagnostics diagnostics = new NetworkDiagnostics();
+    private final WindowsDiagnostics windowsDiagnostics = new WindowsDiagnostics();
 
     public DashboardFrame() {
         super("NetAssist - Network Troubleshooting Dashboard");
@@ -58,6 +64,9 @@ public final class DashboardFrame extends JFrame {
         inputPanel.add(portField);
         inputPanel.add(runButton);
         inputPanel.add(commonPortsButton);
+        inputPanel.add(nslookupButton);
+        inputPanel.add(tracertButton);
+        inputPanel.add(ipconfigButton);
         inputPanel.add(clearButton);
 
         outputArea.setEditable(false);
@@ -74,9 +83,12 @@ public final class DashboardFrame extends JFrame {
         clearButton.addActionListener(event -> outputArea.setText(""));
         hostField.addActionListener(event -> runDiagnostics());
         portField.addActionListener(event -> runDiagnostics());
-        serviceBox.addActionListener(
-                event -> updatePortFromService()
-        );
+        serviceBox.addActionListener(event -> updatePortFromService());
+        nslookupButton.addActionListener(event -> runNslookup());
+
+        tracertButton.addActionListener(event -> runTraceroute());
+
+        ipconfigButton.addActionListener(event -> runIpConfig());
     }
     
     private void updatePortFromService() {
@@ -301,6 +313,197 @@ public final class DashboardFrame extends JFrame {
 
         worker.execute();
     }
+    private void runNslookup() {
+
+        String host = hostField.getText().trim();
+
+        if (host.isEmpty()) {
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Enter a hostname."
+            );
+
+            return;
+        }
+
+        setDiagnosticButtonsEnabled(false);
+
+        outputArea.setText(
+                "Running NSLookup for "
+                        + host
+                        + "...\n"
+        );
+
+        SwingWorker<CommandResult, Void> worker =
+                new SwingWorker<>() {
+
+            @Override
+            protected CommandResult doInBackground() {
+
+                return windowsDiagnostics.runNslookup(host);
+            }
+
+            @Override
+            protected void done() {
+
+                try {
+
+                    CommandResult result = get();
+
+                    outputArea.setText(
+                            formatCommandResult(result)
+                    );
+
+                    outputArea.setCaretPosition(0);
+
+                } catch (Exception exception) {
+
+                    outputArea.setText(
+                            "Unexpected error: "
+                                    + exception.getMessage()
+                    );
+
+                } finally {
+
+                    setDiagnosticButtonsEnabled(true);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+    
+    private void runTraceroute() {
+
+        String host = hostField.getText().trim();
+
+        if (host.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Enter a hostname or IP address."
+            );
+            return;
+        }
+
+        setDiagnosticButtonsEnabled(false);
+
+        outputArea.setText(
+                "Tracing route to " + host + "...\n"
+        );
+
+        SwingWorker<CommandResult, Void> worker =
+                new SwingWorker<>() {
+
+            @Override
+            protected CommandResult doInBackground() {
+                return windowsDiagnostics.runTraceroute(host);
+            }
+
+            @Override
+            protected void done() {
+
+                try {
+
+                    CommandResult result = get();
+
+                    outputArea.setText(
+                            formatCommandResult(result)
+                    );
+
+                    outputArea.setCaretPosition(0);
+
+                } catch (Exception exception) {
+
+                    outputArea.setText(
+                            "Unexpected error: "
+                                    + exception.getMessage()
+                    );
+
+                } finally {
+
+                    setDiagnosticButtonsEnabled(true);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+    
+    private void runIpConfig() {
+
+        setDiagnosticButtonsEnabled(false);
+
+        outputArea.setText(
+                "Reading Windows network configuration...\n"
+        );
+
+        SwingWorker<CommandResult, Void> worker =
+                new SwingWorker<>() {
+
+            @Override
+            protected CommandResult doInBackground() {
+                return windowsDiagnostics.runIpConfig();
+            }
+
+            @Override
+            protected void done() {
+
+                try {
+
+                    CommandResult result = get();
+
+                    outputArea.setText(
+                            formatCommandResult(result)
+                    );
+
+                    outputArea.setCaretPosition(0);
+
+                } catch (Exception exception) {
+
+                    outputArea.setText(
+                            "Unexpected error: "
+                                    + exception.getMessage()
+                    );
+
+                } finally {
+
+                    setDiagnosticButtonsEnabled(true);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+    
+    private void setDiagnosticButtonsEnabled(boolean enabled) {
+
+        runButton.setEnabled(enabled);
+        commonPortsButton.setEnabled(enabled);
+        nslookupButton.setEnabled(enabled);
+        tracertButton.setEnabled(enabled);
+        ipconfigButton.setEnabled(enabled);
+    }
+    
+    
+    private String formatCommandResult(CommandResult result) {
+
+        String status =
+                result.successful()
+                        ? "SUCCESS"
+                        : "FAILED";
+
+        return result.commandName()
+                + "\n"
+                + "Status: " + status
+                + "\n"
+                + "Duration: "
+                + result.durationMs()
+                + " ms\n"
+                + "========================================\n\n"
+                + result.output();
+    }
+    
     
     private String getSelectedServiceName() {
 
