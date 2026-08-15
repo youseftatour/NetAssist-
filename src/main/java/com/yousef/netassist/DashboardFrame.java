@@ -305,6 +305,13 @@ public final class DashboardFrame extends JFrame {
     private final WindowsDiagnostics windowsDiagnostics =
             new WindowsDiagnostics();
 
+
+    private final MonitoringPanel monitoringPanel =
+            new MonitoringPanel(
+                    diagnostics,
+                    () -> hostField.getText().trim()
+            );
+
     public DashboardFrame() {
         super("NetAssist - Network Troubleshooting Dashboard");
 
@@ -767,6 +774,12 @@ public final class DashboardFrame extends JFrame {
         tabs.addTab(
                 "Quick Diagnostics",
                 createQuickDiagnosticsPanel()
+        );
+
+
+        tabs.addTab(
+                "Monitor",
+                monitoringPanel
         );
 
         tabs.addTab(
@@ -2320,7 +2333,10 @@ public final class DashboardFrame extends JFrame {
         );
 
         closeButton.addActionListener(
-                event -> dispose()
+                event -> {
+                    monitoringPanel.stopMonitoring();
+                    dispose();
+                }
         );
     }
 
