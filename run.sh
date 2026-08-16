@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
-if [ ! -f build/NetAssist.jar ]; then
+if [ ! -f target/NetAssist.jar ]; then
     ./build.sh
 fi
 
-java -jar build/NetAssist.jar
+java -jar target/NetAssist.jar

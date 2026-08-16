@@ -1,195 +1,183 @@
 # NetAssist
 
-NetAssist is a Java 17 desktop network troubleshooting and monitoring application built with Swing.
+NetAssist is a Java 17 Swing desktop application for network diagnostics and
+continuous TCP service monitoring. It combines quick troubleshooting tools,
+multi-target monitoring, incident tracking, historical metrics, and report
+exports in one desktop dashboard.
 
-It combines one-off diagnostic tools with continuous multi-target service monitoring in a dark desktop dashboard.
+## Highlights
 
-## Features
+- Resolve DNS names and test host reachability.
+- Check TCP services using common-port presets or a custom port.
+- Run `nslookup`, traceroute/tracert, and local-interface diagnostics.
+- Monitor multiple hosts independently with configurable check intervals.
+- Reduce false alerts with failure and recovery thresholds.
+- Track live latency, uptime, checks, and active incidents.
+- Persist monitoring targets, incidents, and completed sessions.
+- Search history and export diagnostics to TXT or monitoring data to CSV.
+- Display system-tray notifications for confirmed outages and recoveries.
 
-### Quick Diagnostics
+## Technology
 
-- DNS resolution
-- Host reachability check
-- TCP service connectivity
-- Service presets
-- Visual PASS / warning / failure cards
-- Troubleshooting summary
-- Detailed text report
-- Copy report to clipboard
-- Export report to TXT
+- Java 17
+- Swing and AWT
+- Maven
+- Java networking and concurrency APIs
 
-### Multi-Target Monitoring
-
-- Save multiple hosts/services
-- Add, edit, and delete monitoring profiles
-- Start/stop one target
-- Start/stop all targets
-- Independent background monitoring sessions
-- Configurable check interval
-- Configurable failure threshold
-- Configurable recovery threshold
-- Current status
-- Live TCP latency
-- Uptime percentage
-- Total checks
-- Average/minimum/maximum latency
-- Live latency graph
-- Active incident count
-- Selected-target incident timeline
-
-### Incident Detection
-
-NetAssist does not mark a service down after one failed connection.
-
-Example with failure threshold = 3:
-
-1. FAIL
-2. FAIL
-3. FAIL
-4. OUTAGE created
-
-A recovery is also threshold based, reducing false-positive status changes.
-
-### Persistent History
-
-Monitoring profiles, outage/recovery incidents, and completed monitoring sessions survive application restarts.
-
-The History tab provides:
-
-- Incident history
-- Monitoring-session history
-- Search/filter
-- Outage/recovery totals
-- Uptime/session metrics
-- CSV export
-
-### Desktop Alerts
-
-When the operating system supports `SystemTray`, NetAssist displays notifications for confirmed:
-
-- Service outages
-- Service recoveries
-
-### Common Ports
-
-Tests common TCP services such as:
-
-- HTTP
-- HTTPS
-- DNS
-- SSH
-- Remote Desktop
-- SQL Server
-- MySQL
-
-### Advanced Tools
-
-- NSLookup
-- Traceroute / Tracert
-
-### Local Network
-
-- Active local IPv4 interfaces
-- Primary adapter/IP summary
-- Full operating-system IP configuration output
-
-### Desktop UI
-
-- Dark Swing interface
-- Borderless main window
-- Custom vector minimize/maximize/restore/close controls
-- True fullscreen
-- `Esc` exits fullscreen
-- Double-click header to toggle fullscreen
-- Draggable window while windowed
+The application uses only the Java standard library; no third-party runtime
+dependencies are required.
 
 ## Requirements
 
-- Java 17 or newer
-- Windows is the primary target platform
+- JDK 17
+- An internet connection for the Maven Wrapper's first run
 
-The command runner also contains basic Unix fallbacks for traceroute and local IP information.
+Windows is the primary platform. NetAssist also provides basic Unix-like
+fallbacks for traceroute and local IP information.
 
-## Run in Eclipse
-
-1. Import the project as an existing Maven project, or create/import it as a Java project.
-2. Make sure the JRE/JDK is Java 17+.
-3. Run:
-
-`com.yousef.netassist.Main`
-
-## Build on Windows without Maven
-
-Open Command Prompt in the project directory and run:
-
-```bat
-build.bat
-```
-
-Then run:
-
-```bat
-run.bat
-```
-
-The runnable JAR is created at:
+Verify the tools before building:
 
 ```text
-build\NetAssist.jar
+java -version
+.\mvnw.cmd -version
 ```
 
-## Maven
+Both commands should report Java 17 for a Java 17 build. A separate Maven
+installation is optional because the repository includes the Maven Wrapper.
 
-```bash
-mvn clean package
+## Build and Run
+
+From the repository root:
+
+```text
+.\mvnw.cmd clean package
 java -jar target/NetAssist.jar
 ```
 
+Convenience scripts are also available:
+
+```text
+build.bat
+run.bat
+```
+
+On macOS or Linux:
+
+```text
+./mvnw clean package
+./run.sh
+```
+
+## Run in Eclipse
+
+1. Select **File → Import → Maven → Existing Maven Projects**.
+2. Choose the NetAssist repository and finish the import.
+3. Right-click the project and select **Maven → Update Project**.
+4. Confirm the project JRE is **JavaSE-17** under **Properties → Java Build Path**.
+5. Confirm compiler compliance is **17** under **Properties → Java Compiler**.
+6. Open `src/main/java/com/yousef/netassist/Main.java` and select
+   **Run As → Java Application**.
+
+## Features
+
+### Quick diagnostics
+
+NetAssist runs DNS, reachability, and TCP checks and presents their results as
+clear pass, warning, or failure cards. Detailed reports can be copied or saved
+as text files.
+
+### Multi-target monitoring
+
+Saved monitoring profiles can be started independently or together. Each
+session tracks current status, latency, uptime, check totals, latency statistics,
+and an incident timeline.
+
+An outage is confirmed only after the configured number of consecutive
+failures. Recovery uses the same threshold-based approach.
+
+### History and notifications
+
+Monitoring profiles, incidents, and completed sessions persist across launches.
+The History tab supports search, aggregate metrics, and CSV export. When the
+operating system supports `SystemTray`, confirmed outages and recoveries also
+produce desktop notifications.
+
+## Screenshots
+
+### Quick diagnostics
+
+DNS resolution, reachability, and TCP service checks with a detailed diagnostic
+report.
+
+![NetAssist quick diagnostics dashboard](docs/screenshots/dashboard-diagnostics.png)
+
+### Service monitoring
+
+Live multi-target status, latency, uptime, incident counts, and monitoring
+controls.
+
+![NetAssist service monitoring dashboard](docs/screenshots/dashboard-monitoring.png)
+
+### Common ports
+
+Concurrent checks for frequently used services with status and timing details.
+
+![NetAssist common-port scan](docs/screenshots/common-ports.png)
+
+### Monitoring history
+
+Persistent incident and session records with search and CSV export.
+
+![NetAssist monitoring history](docs/screenshots/history.png)
+
+Screenshot assets and privacy guidance are documented in
+[docs/screenshots/README.md](docs/screenshots/README.md).
+
 ## Runtime Data
 
-NetAssist stores user-created monitoring data under:
+NetAssist stores user-created monitoring data outside the repository:
 
 ```text
 %USERPROFILE%\.netassist\
 ```
 
-On Unix-like systems this corresponds to:
+On Unix-like systems, the equivalent location is `~/.netassist/`.
 
-```text
-~/.netassist/
-```
-
-Files include:
+The directory can contain:
 
 - `monitor-targets.properties`
 - `monitor-incidents.tsv`
 - `monitor-sessions.tsv`
 
-No monitoring data is committed to the Git repository.
-
 ## Project Structure
 
 ```text
-src/main/java/com/yousef/netassist/
-├── Main.java
-├── DashboardFrame.java
-├── NetworkDiagnostics.java
-├── WindowsDiagnostics.java
-├── MonitoringDashboardPanel.java
-├── MonitoringManager.java
-├── MonitoringSession.java
-├── MonitoringTarget.java
-├── MonitoringTargetDialog.java
-├── MonitoringTargetStore.java
-├── MonitoringHistoryStore.java
-├── HistoryPanel.java
-├── NotificationService.java
-├── ExportUtils.java
-└── result/model records...
+NetAssist/
+├── pom.xml
+├── src/main/java/com/yousef/netassist/
+│   ├── Main.java
+│   ├── DashboardFrame.java
+│   ├── NetworkDiagnostics.java
+│   ├── WindowsDiagnostics.java
+│   ├── MonitoringDashboardPanel.java
+│   ├── MonitoringManager.java
+│   ├── MonitoringSession.java
+│   ├── MonitoringTargetStore.java
+│   ├── MonitoringHistoryStore.java
+│   ├── HistoryPanel.java
+│   └── supporting models and utilities
+├── docs/
+└── target/                         generated by Maven
 ```
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the architecture overview.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a component overview.
 
 ## Responsible Use
 
-Use network diagnostics and port checks only on systems and networks you own or are authorized to troubleshoot.
+Run network diagnostics and port checks only against systems and networks that
+you own or are authorized to troubleshoot.
+
+## License
+
+No license has been added yet. Unless a license is provided, the repository is
+not automatically open source.

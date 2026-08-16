@@ -1,9 +1,9 @@
 @echo off
 setlocal
 
-if not exist build\NetAssist.jar (
+if not exist target\NetAssist.jar (
     call build.bat
     if errorlevel 1 exit /b 1
 )
 
-java -jar build\NetAssist.jar
+java -jar target\NetAssist.jar

@@ -1,8 +1,12 @@
 # Java build output
 build/
 target/
+bin/
+out/
 *.class
 *.jar
+hs_err_pid*
+*.log
 
 # Eclipse
 .classpath
